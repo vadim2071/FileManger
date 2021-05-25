@@ -18,3 +18,5 @@ del disk_name:\dir_name\del_dir_name удаляет директорию del_dir
 
 info disk_name:\dir_name\file_name or dir_name выводит информцию о директории или файле находящемся в disk_name:\dir_name\, если пути нет то ищется в текущем директории
 
+file disk_name:\dir_name\file_name просмотр содержимого файла file_name
+
