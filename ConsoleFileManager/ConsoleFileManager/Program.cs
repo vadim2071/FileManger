@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-
+using System.Text;
 namespace ConsoleFileManager
 {
     //перечисление возможных команд
@@ -36,12 +36,13 @@ namespace ConsoleFileManager
 
         static void Main(string[] args)
         {
-            string CurentPath = Directory.GetCurrentDirectory(); // текущий каталог (не забыть считать его из файла конфигурации)
+            string CurentPath; // текущий каталог (не забыть считать его из файла конфигурации)
             string NewString = ""; // строка новой команды на выполнение
             Command NewCommand = new Command(CommandList.error, "",""); // для распознанной команда с аргументами
 
             while (NewCommand.Name != CommandList.quit)
             {
+                CurentPath = Directory.GetCurrentDirectory();
                 // вывод дерева каталогов
                 Console.WriteLine(CurentPath);
                 
@@ -56,7 +57,7 @@ namespace ConsoleFileManager
                         ListDir(NewCommand.Arg1, 2);
                         break;
                     case CommandList.cd:
-                        Console.WriteLine("cd смена директории");
+                        cdDir(NewCommand.Arg1);
                         break;
                     case CommandList.copy:
                         Console.WriteLine("copy копирование");
@@ -82,18 +83,56 @@ namespace ConsoleFileManager
 
 
             }
+            // метод смены каталога
+            static void cdDir(string PathName)
+            {
+                if (PathName.Substring(PathName.Length - 1) != @"\") PathName = PathName + @"\"; // в строке содержащей путь последний символ должен быть
+                Directory.SetCurrentDirectory(PathName);
+            }
+
 
             // метод вывода списка каталогов
             static void ListDir(string PathName, int level) //PathName - родительский каталог, level - глубина вывода списка каталогов 
             {
-                if (PathName.Substring(PathName.Length - 1) != "\\") PathName = PathName + "\\"; // в строке содержащей путь последний символ должен быть \
-                string[] listDir = Directory.GetDirectories(PathName);
-                int lenght = PathName.Length;
-                for (int i = 0; i < listDir.Length; i++)
+                Console.OutputEncoding = Encoding.UTF8;
+                if (PathName.Substring(PathName.Length - 1) != @"\") PathName = PathName + @"\"; // в строке содержащей путь последний символ должен быть \
+                string[] listDir = new string [1];
+                
+                try
                 {
-                    Console.WriteLine(listDir[i].Substring(lenght));
+                    listDir = Directory.GetDirectories(PathName); //создаем массив содержащий список каталогов в PathName
                 }
+                catch
+                {
+                    listDir[0] = "Отказано в доступе"; //в случае ошибки пишем - отказано в доступе
+                }
+                
+                int lenght = PathName.Length; // длина строки, содержащей путь к каталогу, список котрого выводим 
+                int NumList = listDir.Length; // количество строк в массиве = количество каталогов
+
+                string space = "";
+                if (level == 1) space = "\u2503 ";
+
+                for (int i = 0; i < NumList; i++)
+                {
+                    if (i == NumList-1) //Выводим список каталогов без пути к нему (вычитаем PathName) в заивисимости от того последний ли элемент в массиве  меняем знак перд выводом
+                    {
+                        Console.WriteLine(space + "\u2517\u2578" + listDir[i].Substring(lenght));
+                        if (level > 1) ListDir(listDir[i], level - 1); //если не вывели всю глубину вложения, продорлжаем выводить
+                    }
+                    else
+                    {
+                        Console.WriteLine(space + "\u2523\u2578" + listDir[i].Substring(lenght));
+                        if (level > 1) ListDir(listDir[i], level - 1);
+                    }
+                }
+                string[] listFile = Directory.GetFiles(PathName); //создаем массив содержащий список файлов в PathName
+                NumList = listFile.Length; // количество строк в массиве = количество файлов
+                for (int i = 0; i < NumList; i++) Console.WriteLine(space + "  " + listFile[i].Substring(lenght));
             }
+
+
+
 
             //метод парсинга полученной команды, на вохде строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
             static Command ParseCommand(string CommandString)
@@ -130,8 +169,14 @@ namespace ConsoleFileManager
 
                         case "cd":
                             NewCommand.Name = CommandList.cd;
-                            NewCommand.Arg1 = CommandArray[1];
-                            if (CommandArray.Length > 2) NewCommand.Name = CommandList.error;
+                            if (Directory.Exists(CommandArray[1]) & CommandArray.Length < 3) // если каталог существует и 1 аргумент, то его передаем, иначе возвращаем ошибку
+                            {
+                                NewCommand.Arg1 = CommandArray[1];
+                            }
+                            else
+                            {
+                                NewCommand.Name = CommandList.error;
+                            }
                             break;
                         case "copy":
                             NewCommand.Name = CommandList.copy;
