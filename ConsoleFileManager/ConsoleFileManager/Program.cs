@@ -5,7 +5,7 @@ namespace ConsoleFileManager
 {
     //перечисление возможных команд
     [Flags]
-    enum CommandList
+    enum CommandName
     {
         dir = 1,
         mkdir = 2,
@@ -19,12 +19,12 @@ namespace ConsoleFileManager
     };
     class Command
     {
-        public CommandList Name { get; set; }
+        public CommandName Name { get; set; }
         public string Arg1 { get; set; }
         public string Arg2 { get; set; }
 
         //конструктор
-        public Command(CommandList name, string arg1, string arg2)
+        public Command(CommandName name, string arg1, string arg2)
         {
             Name = name;
             Arg1 = arg1;
@@ -38,9 +38,9 @@ namespace ConsoleFileManager
         {
             string CurentPath; // текущий каталог (не забыть считать его из файла конфигурации)
             string NewString = ""; // строка новой команды на выполнение
-            Command NewCommand = new Command(CommandList.error, "",""); // для распознанной команда с аргументами
+            Command NewCommand = new Command(CommandName.error, "",""); // для распознанной команда с аргументами
 
-            while (NewCommand.Name != CommandList.quit)
+            while (NewCommand.Name != CommandName.quit)
             {
                 CurentPath = Directory.GetCurrentDirectory();
                 // вывод дерева каталогов
@@ -52,37 +52,53 @@ namespace ConsoleFileManager
 
                 switch (NewCommand.Name)
                 {
-                    case CommandList.dir:
+                    case CommandName.dir:
                         if (NewCommand.Arg1 == "") NewCommand.Arg1 = CurentPath;
                         ListDir(NewCommand.Arg1, 2);
                         break;
-                    case CommandList.cd:
+                    case CommandName.cd:
                         cdDir(NewCommand.Arg1);
                         break;
-                    case CommandList.copy:
-                        Console.WriteLine("copy копирование");
+                    case CommandName.copy:
+                        FileCopy(NewCommand.Arg1, NewCommand.Arg2);
                         break;
-                    case CommandList.del:
+                    case CommandName.del:
                         Console.WriteLine("del удаление");
                         break;
-                    case CommandList.file:
+                    case CommandName.file:
                         Console.WriteLine("file посмотреть содержимое файла");
                         break;
-                    case CommandList.info:
+                    case CommandName.info:
                         Console.WriteLine("info посмотреть содержимое файла");
                         break;
-                    case CommandList.mkdir:
+                    case CommandName.mkdir:
                         Console.WriteLine("mkdir создать каталог");
                         break;
-                    case CommandList.quit:
+                    case CommandName.quit:
                         break;
-                    case CommandList.error:
+                    case CommandName.error:
                         Console.WriteLine("ошибка, неправильная команда");
                         break;
                 }
 
 
             }
+            //метод rопирования файла
+            static void FileCopy(string PathFrom, string PathTo)
+            {
+                File.Copy(PathFrom, PathTo, false);
+                try
+                {
+                    File.Copy(PathFrom, PathTo, false);
+                }
+                catch
+                {
+                    Console.WriteLine("Ошибка");
+                }
+                
+            }
+
+
             // метод смены каталога
             static void cdDir(string PathName)
             {
@@ -137,14 +153,13 @@ namespace ConsoleFileManager
             //метод парсинга полученной команды, на вохде строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
             static Command ParseCommand(string CommandString)
             {
-                Command NewCommand = new Command(CommandList.error, "", ""); //инициализация класса
+                Command NewCommand = new Command(CommandName.error, "", ""); //инициализация класса
 
                 //разбираем введенную команду на подстроки используя знак пробела как разделитель, исключая дублирование пробелов
                 string[] CommandArray = CommandString.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
                 if (CommandArray.Length > 3) // проверка на количество подстрок, их не может быть больше 3х (команда, аргумент 1, аргумент 2
                 {
-                    NewCommand.Name = CommandList.error;
                     return NewCommand;
                 }
 
@@ -153,68 +168,75 @@ namespace ConsoleFileManager
                     switch (CommandArray[0])
                     {
                         case "dir":
-                            NewCommand.Name = CommandList.dir;
+                            NewCommand.Name = CommandName.dir;
                             if (CommandArray.Length > 1) //если присутствует аргумент
                             {
                                 if (Directory.Exists(CommandArray[1])) // если каталог существует, то его передаем, иначе возвращаем ошибку
                                 {
                                     NewCommand.Arg1 = CommandArray[1];
                                 }
-                                else
-                                {
-                                    NewCommand.Name = CommandList.error;
-                                }
                             }
                             break;
 
                         case "cd":
-                            NewCommand.Name = CommandList.cd;
+                            //NewCommand.Name = CommandList.cd;
                             if (Directory.Exists(CommandArray[1]) & CommandArray.Length < 3) // если каталог существует и 1 аргумент, то его передаем, иначе возвращаем ошибку
                             {
                                 NewCommand.Arg1 = CommandArray[1];
-                            }
-                            else
-                            {
-                                NewCommand.Name = CommandList.error;
+                                NewCommand.Name = CommandName.cd;
                             }
                             break;
+
                         case "copy":
-                            NewCommand.Name = CommandList.copy;
-                            NewCommand.Arg1 = CommandArray[1];
-                            NewCommand.Arg2 = CommandArray[2];
+                            if (CommandArray.Length < 3) //проверка что получено 1 команда и 2 аргумента
+                            {
+                                break;
+                            }
+                            else if (File.Exists(CommandArray[1]) & Directory.Exists(CommandArray[2])) //проверка существования исходного файла и целевого каталога
+                            {
+                                NewCommand.Arg1 = CommandArray[1];
+                                NewCommand.Arg2 = CommandArray[2];
+                                NewCommand.Name = CommandName.copy;
+                            } else if (File.Exists(Directory.GetCurrentDirectory() + @"\" + CommandArray[1]) & Directory.Exists(CommandArray[2]))  // первый аргумент может быть именем файла в текущей директории
+                            {
+                                NewCommand.Arg1 = Directory.GetCurrentDirectory() + @"\" + CommandArray[1];
+                                NewCommand.Arg2 = CommandArray[2];
+                                NewCommand.Name = CommandName.copy;
+                            }
                             break;
+
                         case "del":
-                            NewCommand.Name = CommandList.del;
+                            NewCommand.Name = CommandName.del;
                             NewCommand.Arg1 = CommandArray[1];
-                            if (CommandArray.Length > 2) NewCommand.Name = CommandList.error;
+                            if (CommandArray.Length > 2) NewCommand.Name = CommandName.error;
                             break;
                         case "file":
-                            NewCommand.Name = CommandList.file;
+                            NewCommand.Name = CommandName.file;
                             NewCommand.Arg1 = CommandArray[1];
-                            if (CommandArray.Length > 2) NewCommand.Name = CommandList.error;
+                            if (CommandArray.Length > 2) NewCommand.Name = CommandName.error;
                             break;
                         case "info":
-                            NewCommand.Name = CommandList.info;
+                            NewCommand.Name = CommandName.info;
                             NewCommand.Arg1 = CommandArray[1];
-                            if (CommandArray.Length > 2) NewCommand.Name = CommandList.error;
+                            if (CommandArray.Length > 2) NewCommand.Name = CommandName.error;
                             break;
                         case "mkdir":
-                            NewCommand.Name = CommandList.mkdir;
+                            NewCommand.Name = CommandName.mkdir;
                             NewCommand.Arg1 = CommandArray[1];
-                            if (CommandArray.Length > 2) NewCommand.Name = CommandList.error;
+                            if (CommandArray.Length > 2) NewCommand.Name = CommandName.error;
                             break;
                         case "quit":
-                            NewCommand.Name = CommandList.quit;
+                            NewCommand.Name = CommandName.quit;
                             break;
                         default:
-                            NewCommand.Name = CommandList.error;
+                            NewCommand.Name = CommandName.error;
                             break;
                     }
 
                 }
                 catch
                 {
-                    NewCommand.Name = CommandList.error;
+                    NewCommand.Name = CommandName.error;
                 }
 
                 return NewCommand;
