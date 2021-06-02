@@ -66,13 +66,13 @@ namespace ConsoleFileManager
                         Console.WriteLine("del удаление");
                         break;
                     case CommandName.file:
-                        Console.WriteLine("file посмотреть содержимое файла");
+                        FilePrint(NewCommand.Arg1);
                         break;
                     case CommandName.info:
                         Console.WriteLine("info посмотреть содержимое файла");
                         break;
                     case CommandName.mkdir:
-                        Console.WriteLine("mkdir создать каталог");
+                        MakeDir(CurentPath, NewCommand.Arg1);
                         break;
                     case CommandName.quit:
                         break;
@@ -83,7 +83,41 @@ namespace ConsoleFileManager
 
 
             }
-            //метод rопирования файла
+
+            //метод создания каталога
+            static void MakeDir(string Path, string NameDir)
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path + @"\" + NameDir);
+                }
+                catch
+                {
+                    Console.WriteLine("оказано в доступе");
+                }
+                
+            }
+
+            //метод просмотра содержимого файлов
+            static void FilePrint(string Path)
+            {
+                StreamReader file = new StreamReader(Path);
+                try
+                {
+                    do
+                    {
+                        Console.WriteLine(file.ReadLine());
+                    }
+                    while (file.Peek() != -1);
+                }
+                catch
+                {
+                    Console.WriteLine("Файл пустой");
+                }
+                file.Close();
+            }
+
+            //метод копирования файла
             static void FileCopy(string PathFrom, string PathTo)
             {
                 File.Copy(PathFrom, PathTo, false);
@@ -117,37 +151,40 @@ namespace ConsoleFileManager
                 try
                 {
                     listDir = Directory.GetDirectories(PathName); //создаем массив содержащий список каталогов в PathName
+                    int lenght = PathName.Length; // длина строки, содержащей путь к каталогу, список котрого выводим 
+                    int NumList = listDir.Length; // количество строк в массиве = количество каталогов
+
+                    string space = "";
+                    if (level == 1) space = "\u2503 ";
+
+                    for (int i = 0; i < NumList; i++)
+                    {
+                        if (i == NumList - 1) //Выводим список каталогов без пути к нему (вычитаем PathName) в заивисимости от того последний ли элемент в массиве  меняем знак перд выводом
+                        {
+                            Console.WriteLine(space + "\u2517\u2578" + listDir[i].Substring(lenght));
+                            if (level > 1) ListDir(listDir[i], level - 1); //если не вывели всю глубину вложения, продолжаем выводить
+                        }
+                        else
+                        {
+                            Console.WriteLine(space + "\u2523\u2578" + listDir[i].Substring(lenght));
+                            if (level > 1) ListDir(listDir[i], level - 1);
+                        }
+                    }
+                    
+                    if (level == 2) // выводим списко файлов если это не вложенный каатлоги
+                    {
+                        string[] listFile = Directory.GetFiles(PathName); //создаем массив содержащий список файлов в PathName
+                        NumList = listFile.Length; // количество строк в массиве = количество файлов
+                        for (int i = 0; i < NumList; i++) Console.WriteLine(space + "  " + listFile[i].Substring(lenght));
+                    }
+                    
                 }
                 catch
                 {
                     listDir[0] = "Отказано в доступе"; //в случае ошибки пишем - отказано в доступе
+                    Console.WriteLine("\u2503 \u2517\u2578" + listDir[0]);
                 }
-                
-                int lenght = PathName.Length; // длина строки, содержащей путь к каталогу, список котрого выводим 
-                int NumList = listDir.Length; // количество строк в массиве = количество каталогов
-
-                string space = "";
-                if (level == 1) space = "\u2503 ";
-
-                for (int i = 0; i < NumList; i++)
-                {
-                    if (i == NumList-1) //Выводим список каталогов без пути к нему (вычитаем PathName) в заивисимости от того последний ли элемент в массиве  меняем знак перд выводом
-                    {
-                        Console.WriteLine(space + "\u2517\u2578" + listDir[i].Substring(lenght));
-                        if (level > 1) ListDir(listDir[i], level - 1); //если не вывели всю глубину вложения, продорлжаем выводить
-                    }
-                    else
-                    {
-                        Console.WriteLine(space + "\u2523\u2578" + listDir[i].Substring(lenght));
-                        if (level > 1) ListDir(listDir[i], level - 1);
-                    }
-                }
-                string[] listFile = Directory.GetFiles(PathName); //создаем массив содержащий список файлов в PathName
-                NumList = listFile.Length; // количество строк в массиве = количество файлов
-                for (int i = 0; i < NumList; i++) Console.WriteLine(space + "  " + listFile[i].Substring(lenght));
             }
-
-
 
 
             //метод парсинга полученной команды, на вохде строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
@@ -212,8 +249,8 @@ namespace ConsoleFileManager
                             break;
                         case "file":
                             NewCommand.Name = CommandName.file;
-                            NewCommand.Arg1 = CommandArray[1];
-                            if (CommandArray.Length > 2) NewCommand.Name = CommandName.error;
+                            NewCommand.Arg1 = Directory.GetCurrentDirectory() + @"\" + CommandArray[1];
+                            if ((CommandArray.Length > 2) || (!File.Exists(NewCommand.Arg1))) NewCommand.Name = CommandName.error;
                             break;
                         case "info":
                             NewCommand.Name = CommandName.info;
@@ -242,7 +279,6 @@ namespace ConsoleFileManager
                 return NewCommand;
 
             }
-
 
             static string GetFileInfo(string Path, string FileName) //метод получение информации по файлу
             {
