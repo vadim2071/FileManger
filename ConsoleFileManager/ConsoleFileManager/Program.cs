@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Text.Json;
+
 namespace ConsoleFileManager
 {
     //перечисление возможных команд
@@ -36,19 +38,34 @@ namespace ConsoleFileManager
 
         static void Main(string[] args)
         {
+            string FileConfig = "config.json"; // имя файла для хранения последнего каталога в котором работали
+            string PathConfig = Directory.GetCurrentDirectory() + "\\"; //получаем путь откуда запустили программу, по нему будет сохраняться файл с данными
+            string [] ConfigRead = { }; // данные текущего каталога после десериализации
+            string ConfigSave; //данные о каталоге для сериализации
+
             Console.OutputEncoding = Encoding.UTF8;
-            string CurentPath; // текущий каталог (не забыть считать его из файла конфигурации)
+            string CurentPath = Directory.GetCurrentDirectory(); // текущий каталог (не забыть считать его из файла конфигурации)
             string NewString = ""; // строка новой команды на выполнение
             Command NewCommand = new(CommandName.error, "",""); // для распознанной команда с аргументами
 
+            if (!File.Exists(FileConfig)) //проверка существования файла данных, если нет создаем и записываем в него текущий каталог
+            {
+                File.Create(FileConfig).Close();
+                ConfigSave = JsonSerializer.Serialize(CurentPath);
+                File.AppendAllText(FileConfig, ConfigSave);
+            }
+
+            ConfigRead = File.ReadAllLines(FileConfig); //читаем данные из файла конфигурации
+            //проверяем существование сохраненного каталога, если он есть сохраняем его как текущий каталог иначе начинаем с рабочего каталога программы
+            if (Directory.Exists(JsonSerializer.Deserialize<string>(ConfigRead[0]))) CurentPath = cdDir(JsonSerializer.Deserialize<string>(ConfigRead[0])); 
+
+            ListDir(CurentPath, 1); // вывод текущего дерева каталога
+
             while (NewCommand.Name != CommandName.quit)
             {
-                CurentPath = Directory.GetCurrentDirectory();
-                // вывод дерева каталогов
-                Console.WriteLine(CurentPath);
-                
-                NewString = Console.ReadLine(); //получение новой команды
+                Console.WriteLine(CurentPath); // вывод текущего каталога
 
+                NewString = Console.ReadLine(); //получение новой команды
                 NewCommand = ParseCommand(NewString.ToLower()); // перевод строки в "маленький регистр", парсинг/разбор команды
 
                 switch (NewCommand.Name)
@@ -58,7 +75,7 @@ namespace ConsoleFileManager
                         ListDir(NewCommand.Arg1, 2);
                         break;
                     case CommandName.cd:
-                        cdDir(NewCommand.Arg1);
+                        CurentPath = cdDir(NewCommand.Arg1);
                         break;
                     case CommandName.copy:
                         FileCopy(NewCommand.Arg1, NewCommand.Arg2);
@@ -76,6 +93,10 @@ namespace ConsoleFileManager
                         MakeDir(CurentPath, NewCommand.Arg1);
                         break;
                     case CommandName.quit:
+                        //записываем последний каталог
+                        File.Create(PathConfig + FileConfig).Close();
+                        ConfigSave = JsonSerializer.Serialize(CurentPath);
+                        File.AppendAllText(PathConfig + FileConfig, ConfigSave);
                         break;
                     case CommandName.error:
                         Console.WriteLine("ошибка, неправильная команда");
@@ -88,20 +109,20 @@ namespace ConsoleFileManager
             //метод получение информации по файлу
             static void GetFileInfo(string FileName) 
             {
-                int FileSize;
+                long FileSize;
                 DateTime FileDateCreate;
                 DateTime FileLastChange;
                 FileInfo fileInfo = new FileInfo(FileName);
-                bool FileAtrReadOnly;
+                string FileAtrReadOnly = "yes";
 
 
                 if (File.Exists(FileName)) //проверка существования заданного файла
                 {
-                    FileSize = FileName.Length; //размер файла в Byte
+                    FileSize = fileInfo.Length / 1024; //размер файла в KByte
                     FileDateCreate = fileInfo.CreationTime; // дата создания
                     FileLastChange = fileInfo.LastWriteTime; //дата последнего изменения
-                    FileAtrReadOnly = fileInfo.IsReadOnly; //только чтение
-                    Console.WriteLine("Файл {0} \n размер {1} Byte\n дата создания {2}\n дата последнего изменения {3}\n только для чтения", FileSize, FileDateCreate, FileLastChange);
+                    if (fileInfo.IsReadOnly) FileAtrReadOnly = "no";
+                    Console.WriteLine("Файл {0} \n размер {1} KByte\n дата создания {2}\n дата последнего изменения {3}\n только для чтения {4}", FileName, FileSize, FileDateCreate, FileLastChange, FileAtrReadOnly);
 
                 }
             }
@@ -170,10 +191,11 @@ namespace ConsoleFileManager
 
 
             // метод смены каталога
-            static void cdDir(string PathName)
+            static string cdDir(string PathName)
             {
                 if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть
                 Directory.SetCurrentDirectory(PathName);
+                return PathName;
             }
 
 
