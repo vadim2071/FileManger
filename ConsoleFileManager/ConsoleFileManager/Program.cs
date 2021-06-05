@@ -38,40 +38,37 @@ namespace ConsoleFileManager
 
         static void Main(string[] args)
         {
+            Console.OutputEncoding = Encoding.UTF8;
             string FileConfig = "config.json"; // имя файла для хранения последнего каталога в котором работали
             string PathConfig = Directory.GetCurrentDirectory() + "\\"; //получаем путь откуда запустили программу, по нему будет сохраняться файл с данными
-            string [] ConfigRead = { }; // данные текущего каталога после десериализации
-            string ConfigSave; //данные о каталоге для сериализации
+            string [] ConfigRead = { }; // данные текущего каталога после десериализации из файла конфигурации
 
-            Console.OutputEncoding = Encoding.UTF8;
-            string CurentPath = Directory.GetCurrentDirectory(); // текущий каталог (не забыть считать его из файла конфигурации)
-            string NewString = ""; // строка новой команды на выполнение
+            string CurentPath = Directory.GetCurrentDirectory(); // текущий каталог 
+            string NewString = ""; // строка новой команды на выполнение введенной пользователем
             Command NewCommand = new(CommandName.error, "",""); // для распознанной команда с аргументами
 
             if (!File.Exists(FileConfig)) //проверка существования файла данных, если нет создаем и записываем в него текущий каталог
             {
                 File.Create(FileConfig).Close();
-                ConfigSave = JsonSerializer.Serialize(CurentPath);
-                File.AppendAllText(FileConfig, ConfigSave);
+                File.AppendAllText(FileConfig, JsonSerializer.Serialize(CurentPath));
             }
 
             ConfigRead = File.ReadAllLines(FileConfig); //читаем данные из файла конфигурации
             //проверяем существование сохраненного каталога, если он есть сохраняем его как текущий каталог иначе начинаем с рабочего каталога программы
             if (Directory.Exists(JsonSerializer.Deserialize<string>(ConfigRead[0]))) CurentPath = cdDir(JsonSerializer.Deserialize<string>(ConfigRead[0])); 
-
-            ListDir(CurentPath, 1); // вывод текущего дерева каталога
+            ListDir(CurentPath, 1); // вывод текущего дерева каталога без вывода вложенных каталогов
 
             while (NewCommand.Name != CommandName.quit)
             {
                 Console.WriteLine(CurentPath); // вывод текущего каталога
 
                 NewString = Console.ReadLine(); //получение новой команды
-                NewCommand = ParseCommand(NewString.ToLower()); // перевод строки в "маленький регистр", парсинг/разбор команды
+                NewCommand = ParseCommand(NewString.ToLower()); // перевод строки в "маленький регистр", и вызов метода для разбора команды
 
                 switch (NewCommand.Name)
                 {
                     case CommandName.dir:
-                        if (NewCommand.Arg1 == "") NewCommand.Arg1 = CurentPath;
+                        if (NewCommand.Arg1 == "") NewCommand.Arg1 = CurentPath; //если аргумента нет то выводим списсок катаолгов в текущем каталоге
                         ListDir(NewCommand.Arg1, 2);
                         break;
                     case CommandName.cd:
@@ -95,8 +92,7 @@ namespace ConsoleFileManager
                     case CommandName.quit:
                         //записываем последний каталог
                         File.Create(PathConfig + FileConfig).Close();
-                        ConfigSave = JsonSerializer.Serialize(CurentPath);
-                        File.AppendAllText(PathConfig + FileConfig, ConfigSave);
+                        File.AppendAllText(PathConfig + FileConfig, JsonSerializer.Serialize(CurentPath));
                         break;
                     case CommandName.error:
                         Console.WriteLine("ошибка, неправильная команда");
@@ -243,7 +239,7 @@ namespace ConsoleFileManager
             }
 
 
-            //метод парсинга полученной команды, на входе строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
+            //метод разбора полученной команды, на входе строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
             static Command ParseCommand(string CommandString)
             {
                 Command NewCommand = new(CommandName.error, "", ""); //инициализация класса
@@ -261,13 +257,15 @@ namespace ConsoleFileManager
                             NewCommand.Name = CommandName.dir;
                             if (CommandArray.Length == 2) //если присутствует аргумент
                             {
-                                if (Directory.Exists(CommandArray[1])) NewCommand.Arg1 = CommandArray[1]; // если каталог существует, то его передаем, иначе возвращаем ошибку
+                                // если каталог существует, то его передаем, иначе возвращаем ошибку
+                                if (Directory.Exists(CommandArray[1])) NewCommand.Arg1 = CommandArray[1]; 
                                 else NewCommand.Name = CommandName.error;
                             }
                             break;
 
                         case "cd":
-                            if (Directory.Exists(CommandArray[1]) & CommandArray.Length == 2) // если каталог существует и 1 аргумент, то его передаем, иначе возвращаем ошибку
+                            // если каталог существует и 1 аргумент, то его передаем, иначе возвращаем ошибку
+                            if (Directory.Exists(CommandArray[1]) & CommandArray.Length == 2) 
                             {
                                 NewCommand.Arg1 = CommandArray[1];
                                 NewCommand.Name = CommandName.cd;
