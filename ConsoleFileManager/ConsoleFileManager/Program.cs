@@ -182,7 +182,7 @@ namespace ConsoleFileManager
                 file.Close();
             }
 
-            //метод копирования файла
+            //метод копирования файла / каталога
             static void FileCopy(string PathFrom, string PathTo)
             {
                 try
