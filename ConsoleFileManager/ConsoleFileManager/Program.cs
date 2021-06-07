@@ -113,7 +113,7 @@ namespace ConsoleFileManager
                 long Size;
                 DateTime DateCreate;
                 DateTime LastChange;
-                string FileAtrReadOnly = "yes";
+                string FileAtrReadOnly = "no";
 
 
                 if (File.Exists(Name)) //проверка существования заданного файла
@@ -122,16 +122,41 @@ namespace ConsoleFileManager
                     Size = fileInfo.Length / 1024; //размер файла в KByte
                     DateCreate = fileInfo.CreationTime; // дата создания
                     LastChange = fileInfo.LastWriteTime; //дата последнего изменения
-                    if (fileInfo.IsReadOnly) FileAtrReadOnly = "no";
-                    Console.WriteLine("Файл {0} \n размер {1} KByte\n дата создания {2}\n дата последнего изменения {3}\n только для чтения {4}", Name, Size, DateCreate, LastChange, FileAtrReadOnly);
+                    if (fileInfo.IsReadOnly) FileAtrReadOnly = "Yes";
+                    Console.WriteLine("Файл {0} \n размер {1} KByte\n дата создания {2}\n дата последнего изменения {3}\n атрибут файла только для чтения - {4}", Name, Size, DateCreate, LastChange, FileAtrReadOnly);
                 }
                 else if (Directory.Exists(Name))
                 {
                     DirectoryInfo DirInfo = new DirectoryInfo(Name);
                     DateCreate = DirInfo.CreationTime;
                     LastChange = DirInfo.LastWriteTime;
-                    Console.WriteLine("Каталог {0} \n дата создания {1}\n дата последнего изменения {2}", Name, DateCreate, LastChange);
+                    Size = DirSize(Name)/1024;
+                    Console.WriteLine("Каталог {0} \n размер {1} KByte \n дата создания {2}\n дата последнего изменения {3}", Name, Size, DateCreate, LastChange);
                 }
+            }
+
+
+            //метод подсчета размера каталога
+            static long DirSize(String path)
+            {
+                long Size = 0;
+                DirectoryInfo DirPath = new DirectoryInfo(path);
+
+                try
+                {
+                    DirectoryInfo[] DirList = DirPath.GetDirectories(); //получаем список каталогов в текущем каталоге
+                    FileInfo[] FileList = DirPath.GetFiles(); // получаем списко файлов в текущем каталоге
+
+                    foreach (FileInfo file in FileList) Size = Size + file.Length; //подсчет размера всех файлов в текущем каталоге
+                    foreach (DirectoryInfo Dir in DirList) Size = Size + DirSize(Dir.FullName); //подсчет размера всех файлов для каждого катлога в текущем каталоге
+
+                    return Size;
+                }
+                catch
+                {
+                    return Size;
+                }
+                
             }
 
             //метод удаления файла / каталога
@@ -142,9 +167,17 @@ namespace ConsoleFileManager
                     if (TypeElement == "file") File.Delete(DelElement);
                     else Directory.Delete(DelElement, true);
                 }
-                catch
+                catch(UnauthorizedAccessException)
                 {
-                    Console.WriteLine("Ошибка удаления");
+                    Console.WriteLine("Ошибка! У вас нет прав на удаление этого объекта");
+                }
+                catch (IOException)
+                {
+                    Console.WriteLine("Ошибка! \n - Каталог является текущим рабочим каталогом приложения или Каталог не пустой.\n - Каталог доступен только для чтения или содержит файл, доступный только для чтения. \n Каталог используется другим процессом.");
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine("Ошибка! Что-то пошло не так: " + ex);
                 }
 
             }
