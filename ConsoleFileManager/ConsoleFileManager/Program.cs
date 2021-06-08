@@ -38,8 +38,7 @@ namespace ConsoleFileManager
         static int Page = 50; // сколько строк выводить за 1 раз при команде dir
         static void Main(string[] args)
         {
-            //int Page = 20; // сколько строк выводить за 1 раз при команде dir
-            Console.OutputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8; //Для корректного вывода псевдографики
             string FileConfig = "config.json"; // имя файла для хранения последнего каталога в котором работали
             string PathConfig = Directory.GetCurrentDirectory() + "\\"; //получаем путь откуда запустили программу, по нему будет сохраняться файл с данными
             string [] ConfigRead = { }; // данные текущего каталога после десериализации из файла конфигурации
@@ -56,7 +55,8 @@ namespace ConsoleFileManager
 
             ConfigRead = File.ReadAllLines(FileConfig); //читаем данные из файла конфигурации
             //проверяем существование сохраненного каталога, если он есть сохраняем его как текущий каталог иначе начинаем с рабочего каталога программы
-            if (Directory.Exists(JsonSerializer.Deserialize<string>(ConfigRead[0]))) CurentPath = cdDir(JsonSerializer.Deserialize<string>(ConfigRead[0])); 
+            if (Directory.Exists(JsonSerializer.Deserialize<string>(ConfigRead[0]))) CurentPath = JsonSerializer.Deserialize<string>(ConfigRead[0]);
+            cdDir(CurentPath);
             //ListDir(CurentPath, 1); // вывод текущего дерева каталога без вывода вложенных каталогов
 
             while (NewCommand.Name != CommandName.quit)
@@ -67,32 +67,33 @@ namespace ConsoleFileManager
                 Console.Clear();
                 Console.WriteLine(CurentPath);
                 Console.WriteLine(NewString);
-                NewCommand = ParseCommand(NewString.ToLower()); // перевод строки в "маленький регистр", и вызов метода для разбора команды
+                NewCommand = ParseCommand(NewString); // разбираем введенную строку команды
 
                 switch (NewCommand.Name)
                 {
                     case CommandName.dir:
-                        if (NewCommand.Arg1 == "") NewCommand.Arg1 = CurentPath; //если аргумента нет то выводим списсок катаолгов в текущем каталоге
+                        if (NewCommand.Arg1 == "") NewCommand.Arg1 = CurentPath; //если аргумента нет то выводим список каталогов в текущем каталоге
                         CountPage = Page;
                         ListDir(NewCommand.Arg1, 2, false);
                         break;
                     case CommandName.cd:
-                        CurentPath = cdDir(NewCommand.Arg1);
+                        cdDir(NewCommand.Arg1);
+                        CurentPath = Directory.GetCurrentDirectory();
                         break;
                     case CommandName.copy:
                         FileCopy(NewCommand.Arg1, NewCommand.Arg2);
                         break;
                     case CommandName.del:
-                        Delete(NewCommand.Arg1, NewCommand.Arg2);
+                        Delete(NewCommand.Arg1);
                         break;
                     case CommandName.file:
-                        FilePrint(NewCommand.Arg1);
+                        FileInfo(NewCommand.Arg1);
                         break;
                     case CommandName.info:
                         GetInfo(NewCommand.Arg1);
                         break;
                     case CommandName.mkdir:
-                        MakeDir(CurentPath, NewCommand.Arg1);
+                        MakeDir(NewCommand.Arg1);
                         break;
                     case CommandName.quit:
                         //записываем последний каталог
@@ -105,6 +106,63 @@ namespace ConsoleFileManager
                 }
 
 
+            }
+
+            //метод разбора полученной команды, на входе строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
+            static Command ParseCommand(string CommandString)
+            {
+                Command NewCommand = new(CommandName.error, "", ""); //инициализация класса
+                //разбираем введенную команду на подстроки используя знак пробела как разделитель, исключая дублирование пробелов
+                string[] CommandArray = CommandString.ToLower().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                // проверка на количество аргументов, их не может быть больше 3х (команда, аргумент 1, аргумент 2) или без команды
+                if (CommandArray.Length > 3 || CommandArray.Length == 0) return NewCommand;
+                else if (CommandArray.Length == 2) NewCommand.Arg1 = CommandArray[1];
+                else if (CommandArray.Length == 3)
+                {
+                    NewCommand.Arg1 = CommandArray[1];
+                    NewCommand.Arg2 = CommandArray[2];
+                }
+
+                switch (CommandArray[0])
+                {
+                    case "dir":
+                        NewCommand.Name = CommandName.dir;
+                        break;
+
+                    case "cd":
+                        NewCommand.Name = CommandName.cd;
+                        break;
+
+                    case "copy":
+                        NewCommand.Name = CommandName.copy;
+                        break;
+
+                    case "del":
+                        NewCommand.Name = CommandName.del;
+                        break;
+
+                    case "file":
+                        NewCommand.Name = CommandName.file;
+                        break;
+
+                    case "info":
+                        NewCommand.Name = CommandName.info;
+                        break;
+
+                    case "mkdir":
+                        NewCommand.Name = CommandName.mkdir;
+                        break;
+
+                    case "quit":
+                        NewCommand.Name = CommandName.quit;
+                        break;
+
+                    default:
+                        NewCommand.Name = CommandName.error;
+                        break;
+                }
+                return NewCommand;
             }
 
             //метод получение информации по файлу/каталогу
@@ -130,11 +188,11 @@ namespace ConsoleFileManager
                     DirectoryInfo DirInfo = new DirectoryInfo(Name);
                     DateCreate = DirInfo.CreationTime;
                     LastChange = DirInfo.LastWriteTime;
-                    Size = DirSize(Name)/1024;
+                    Size = DirSize(Name) / 1024;
                     Console.WriteLine("Каталог {0} \n размер {1} KByte \n дата создания {2}\n дата последнего изменения {3}", Name, Size, DateCreate, LastChange);
                 }
+                else Console.WriteLine("Ошибка! Объект не найден");
             }
-
 
             //метод подсчета размера каталога
             static long DirSize(String path)
@@ -145,7 +203,7 @@ namespace ConsoleFileManager
                 try
                 {
                     DirectoryInfo[] DirList = DirPath.GetDirectories(); //получаем список каталогов в текущем каталоге
-                    FileInfo[] FileList = DirPath.GetFiles(); // получаем списко файлов в текущем каталоге
+                    FileInfo[] FileList = DirPath.GetFiles(); // получаем список файлов в текущем каталоге
 
                     foreach (FileInfo file in FileList) Size = Size + file.Length; //подсчет размера всех файлов в текущем каталоге
                     foreach (DirectoryInfo Dir in DirList) Size = Size + DirSize(Dir.FullName); //подсчет размера всех файлов для каждого катлога в текущем каталоге
@@ -160,12 +218,18 @@ namespace ConsoleFileManager
             }
 
             //метод удаления файла / каталога
-            static void Delete (string DelElement, string TypeElement)
+            static void Delete (string DelElement)
             {
+                //если второй символ не ':' (используется в обозначени диска), предполагаем что DelElement содержит имя удаляемого элемента в текущем каталоге
+                if (DelElement[1] != ':') DelElement = Path.Combine(Directory.GetCurrentDirectory(), DelElement); 
+
                 try
                 {
-                    if (TypeElement == "file") File.Delete(DelElement);
-                    else Directory.Delete(DelElement, true);
+                    if (File.Exists(DelElement))
+                    {
+                        File.Delete(DelElement);
+                        return;
+                    }
                 }
                 catch(UnauthorizedAccessException)
                 {
@@ -173,69 +237,191 @@ namespace ConsoleFileManager
                 }
                 catch (IOException)
                 {
-                    Console.WriteLine("Ошибка! \n - Каталог является текущим рабочим каталогом приложения или Каталог не пустой.\n - Каталог доступен только для чтения или содержит файл, доступный только для чтения. \n Каталог используется другим процессом.");
+                    Console.WriteLine("Ошибка! Файл используется другим процессом или файл не найден");
                 }
-                catch(Exception ex)
+                catch (ArgumentException)
+                {
+                    Console.WriteLine("Ошибка в аргументе");
+                }
+                catch (NotSupportedException)
+                {
+                    Console.WriteLine("параметр задан в недопустимом формате");
+                }
+                catch (Exception ex)
                 {
                     Console.WriteLine("Ошибка! Что-то пошло не так: " + ex);
                 }
 
+                try
+                {
+                    Directory.Delete(DelElement);
+                    return;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    Console.WriteLine("Ошибка! У вас нет прав на удаление этого объекта");
+                }
+                catch (IOException)
+                {
+                    Console.WriteLine("Ошибка! В каталоге файл используется другим процессом или каталог не найден \nили каталог доступен только для чтения или содержит файл только для чтения");
+                }
+                catch (ArgumentException)
+                {
+                    Console.WriteLine("Ошибка в аргументе");
+                }
+                catch (NotSupportedException)
+                {
+                    Console.WriteLine("параметр задан в недопустимом формате");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Ошибка! Что-то пошло не так: " + ex);
+                }
             }
 
             //метод создания каталога
-            static void MakeDir(string Path, string NameDir)
+            static void MakeDir(string NewDir)
             {
                 try
                 {
-                    Directory.CreateDirectory(Path + @"\" + NameDir);
+                    //если аргумент не содержит знак : (используется при обозначении пути к диску) предполагаем что NewDir это имя нового каталога в текущем каталоге
+                    if (NewDir[1] != ':') NewDir = Path.Combine(Directory.GetCurrentDirectory(), NewDir); 
+                    Directory.CreateDirectory(NewDir);
                 }
-                catch
+                catch(IOException)
                 {
-                    Console.WriteLine("оказано в доступе");
+                    Console.WriteLine("Ошибка! Каталог, заданный параметром path, является файлом или недопустимый путь");
                 }
-                
+                catch (UnauthorizedAccessException)
+                {
+                    Console.WriteLine("Ошибка! отсутствует необходимое разрешение");
+                }
+                catch (ArgumentNullException)
+                {
+                    Console.WriteLine("Ошибка! не задан новый католог");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Что-то пошло не так {0}", ex);
+                }
+
             }
 
             //метод просмотра содержимого файлов
-            static void FilePrint(string Path)
+            static void FileInfo(string Path)
             {
-                StreamReader file = new(Path);
-                try
+                if (File.Exists(Path))
                 {
-                    do
+                    StreamReader file = new(Path);
+                    try
                     {
-                        Console.WriteLine(file.ReadLine());
+                        do
+                        {
+                            Console.WriteLine(file.ReadLine());
+                        }
+                        while (file.Peek() != -1);
                     }
-                    while (file.Peek() != -1);
+                    catch
+                    {
+                        Console.WriteLine("Файл пустой");
+                    }
+                    file.Close();
                 }
-                catch
-                {
-                    Console.WriteLine("Файл пустой");
-                }
-                file.Close();
+                else Console.WriteLine("файл {0} не найден", Path);
+                
             }
 
             //метод копирования файла / каталога
             static void FileCopy(string PathFrom, string PathTo)
             {
-                try
+                if (File.Exists(PathFrom))
                 {
-                    File.Copy(PathFrom, PathTo, false);
+                    try
+                    {
+                        File.Copy(PathFrom, PathTo, true);
+                    }
+                    catch (DirectoryNotFoundException)
+                    {
+                        Console.WriteLine("Каталог не найден");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Что-то пошло не так " + ex);
+                    }
                 }
-                catch
+                else if (Directory.Exists(PathFrom))
                 {
-                    Console.WriteLine("Ошибка");
+                    DirCopy(PathFrom, PathTo);
                 }
-                
+                else Console.WriteLine("Ошибка! Неверно указан источник копирования");
             }
 
+            // Метод копирования каталога
+            static void DirCopy(string PathFrom, string PathTo)
+            {
+                DirectoryInfo DirPathSource = new DirectoryInfo(PathFrom);
+                DirectoryInfo DirPathDestination = new DirectoryInfo(PathTo);
+                DirectoryInfo[] DirList = DirPathSource.GetDirectories(); //получаем список каталогов в копируемом каталоге
+                FileInfo[] FileList = DirPathSource.GetFiles(); // получаем список файлов в копируемом каталоге
+                if (PathFrom == PathTo)
+                {
+                    Console.WriteLine("Ошибка! Нельзя копировать каталог в самого себя");
+                    return;
+                }
+                try
+                {
+                    Directory.CreateDirectory(PathTo); // создание целевого каталога
+                }
+                catch(IOException)
+                {
+                    Console.WriteLine("Ошибка! каталог в который копируется является файлом или недопустимый путь");
+                    return;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    Console.WriteLine("Ошибка! У вас нет прав для копирования");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Что-то пошло не так" + ex);
+                    return;
+                }
+
+                foreach (FileInfo file in FileList) file.CopyTo(Path.Combine(DirPathDestination.FullName, file.Name)); //копируем все файлы
+                foreach (DirectoryInfo Dir in DirList) DirCopy(Dir.FullName, Path.Combine(DirPathDestination.FullName, Dir.Name)); //создаем все существующией каталоги в целевом каталоге
+            }
 
             // метод смены каталога
-            static string cdDir(string PathName)
+            static void cdDir(string PathName)
             {
-                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть
-                Directory.SetCurrentDirectory(PathName);
-                return PathName;
+                try
+                {
+                    if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \
+                    Directory.SetCurrentDirectory(PathName);
+                }
+                catch(FileNotFoundException)
+                {
+                    Console.WriteLine("Ошибка! путь не найден");
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    Console.WriteLine("Ошибка! каталог не найден");
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine("Что-то пошло не так" + ex);
+                }
+            }
+
+            
+            //метод получения списка каталогов и файлов - версия 2
+            static string[] DirList(String PathName, int level)
+            {
+                string[] DirList = { }; //массив для хранения списка каталогов и файлов
+                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
+
+                return DirList;
             }
 
 
@@ -243,7 +429,8 @@ namespace ConsoleFileManager
             // LastDir - признак что вызываем вывод список каталогов для последнего родительского каталога
             static void ListDir(string PathName, int level, bool LastDir) 
             {
-                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \
+                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
+
                 string[] listDir = new string[1]; //для сохранения полученного списка каталогов
                 int lenght = PathName.Length; // длина строки, содержащей путь к каталогу, список котрого выводим
                 string LeftSpace = ""; // нужно когда выводится подкаталоги (второй уровень вложенности)
@@ -298,110 +485,6 @@ namespace ConsoleFileManager
                         CountPage = Page;
                     }
                 }
-            }
-                
-            //метод разбора полученной команды, на входе строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
-            static Command ParseCommand(string CommandString)
-            {
-                Command NewCommand = new(CommandName.error, "", ""); //инициализация класса
-
-                //разбираем введенную команду на подстроки используя знак пробела как разделитель, исключая дублирование пробелов
-                string[] CommandArray = CommandString.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-                if (CommandArray.Length > 3) return NewCommand; // проверка на количество подстрок, их не может быть больше 3х (команда, аргумент 1, аргумент 2
-
-                try
-                {
-                    switch (CommandArray[0])
-                    {
-                        case "dir":
-                            NewCommand.Name = CommandName.dir;
-                            if (CommandArray.Length == 2) //если присутствует аргумент
-                            {
-                                // если каталог существует, то его передаем, иначе возвращаем ошибку
-                                if (Directory.Exists(CommandArray[1])) NewCommand.Arg1 = CommandArray[1]; 
-                                else NewCommand.Name = CommandName.error;
-                            }
-                            break;
-
-                        case "cd":
-                            // если каталог существует и 1 аргумент, то его передаем, иначе возвращаем ошибку
-                            if (Directory.Exists(CommandArray[1]) & CommandArray.Length == 2) 
-                            {
-                                NewCommand.Arg1 = CommandArray[1];
-                                NewCommand.Name = CommandName.cd;
-                            }
-                            break;
-
-                        case "copy":
-                            if (CommandArray.Length == 3) //проверка что получено 1 команда и 2 аргумента
-                            {
-                                if (File.Exists(CommandArray[1])) //проверка существования исходного файла
-                                {
-                                    NewCommand.Arg1 = CommandArray[1];
-                                    NewCommand.Arg2 = CommandArray[2];
-                                    NewCommand.Name = CommandName.copy;
-                                }
-                                else if (File.Exists(Directory.GetCurrentDirectory() + @"\" + CommandArray[1]))  // первый аргумент может быть именем файла в текущей директории
-                                {
-                                    NewCommand.Arg1 = Directory.GetCurrentDirectory() + @"\" + CommandArray[1];
-                                    NewCommand.Arg2 = CommandArray[2];
-                                    NewCommand.Name = CommandName.copy;
-                                }
-                            }
-                            break;
-
-                        case "del":
-                            if (CommandArray.Length == 2)
-                            {
-                                NewCommand.Name = CommandName.del;
-                                NewCommand.Arg1 = CommandArray[1];
-                                if (File.Exists(NewCommand.Arg1)) NewCommand.Arg2 = "file";
-                                else NewCommand.Arg2 = "dir";
-                            }
-                            break;
-
-                        case "file":
-                            if (CommandArray.Length == 2 & File.Exists(CommandArray[1]))
-                            {
-                                NewCommand.Name = CommandName.file;
-                                NewCommand.Arg1 = Directory.GetCurrentDirectory() + @"\" + CommandArray[1];
-                            }
-                            break;
-
-                        case "info":
-                            if (CommandArray.Length == 2 & (File.Exists(CommandArray[1]) || Directory.Exists(CommandArray[1])))
-                            {
-                                NewCommand.Name = CommandName.info;
-                                NewCommand.Arg1 = CommandArray[1];
-                            }
-                            break;
-
-                        case "mkdir":
-                            if (CommandArray.Length == 2)
-                            {
-                                NewCommand.Name = CommandName.mkdir;
-                                NewCommand.Arg1 = CommandArray[1];
-                            }
-                            break;
-
-                        case "quit":
-                            NewCommand.Name = CommandName.quit;
-                            break;
-
-                        default:
-                            NewCommand.Name = CommandName.error;
-                            break;
-                    }
-
-                }
-                catch
-                {
-                    NewCommand.Name = CommandName.error;
-                }
-
-                return NewCommand;
-
             }
         }
     }
