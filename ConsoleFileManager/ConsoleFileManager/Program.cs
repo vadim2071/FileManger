@@ -34,11 +34,9 @@ namespace ConsoleFileManager
     }
     class Program
     {
-        //static int CountPage; // счетчик выводимых строк в команде dir
-        //static int Page = 50; // сколько строк выводить за 1 раз при команде dir
         static void Main(string[] args)
         {
-            int Page = 50; // сколько строк выводить за 1 раз при команде dir
+            int Page = 40; // сколько строк выводить за 1 раз при команде dir
             Console.OutputEncoding = Encoding.UTF8; //Для корректного вывода псевдографики
             string FileConfig = "config.json"; // имя файла для хранения последнего каталога в котором работали
             string PathConfig = Directory.GetCurrentDirectory() + "\\"; //получаем путь откуда запустили программу, по нему будет сохраняться файл с данными
@@ -120,37 +118,45 @@ namespace ConsoleFileManager
                 string[] CurentDirList = { }; //для сохранения полученного списка каталогов
                 string[] CurentFileList = { }; //для сохранения полученного списка файлов в текущем каталоге
                 string[] Level2DirList = { }; //для хранения списка подкаталогов
-                int Lengt;
+                int length;
                 if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
 
-                CurentDirList = Directory.GetDirectories(PathName); //получаем список каталогов в каталоге PathName
+                try
+                {
+                    CurentDirList = Directory.GetDirectories(PathName); //получаем список каталогов в каталоге PathName
+                }
+                catch
+                {
+                    // отказ в доступе, также ниже добавить
+                }
+
                 CurentFileList = Directory.GetFiles(PathName); //получаем список файлов в каталоге PathName
 
-                Lengt = DirList.Length + 1;
+                length = DirList.Length;
 
                 for (int i = 0; i < CurentDirList.Length; i++) //записываем список каталогов
                 {
-                    Array.Resize(ref DirList, Lengt + i);
+                    length++;
 
-                    Lengt++;
+                    Array.Resize(ref DirList, length);
 
-                    DirList[Lengt - 1] = CurentDirList[i];
+                    DirList[length - 1] = CurentDirList[i];
 
                     Level2DirList = Directory.GetDirectories(CurentDirList[i]);
 
-                    for (int c = 0; c < Level2DirList.Length; c++) //записываем список подкаталогов
+                    for (int c = 0; c < Level2DirList.Length; c++) //записываем список подкаталогов каждого каталога
                     {
-                        Lengt++;
-                        Array.Resize(ref DirList, Lengt + i);
-                        DirList[Lengt + i - 1] = Level2DirList[c];
+                        length++;
+                        Array.Resize(ref DirList, length);
+                        DirList[length - 1] = Level2DirList[c];
                     }
                 }
 
-                for (int i = 0; i < CurentFileList.Length; i++)
+                for (int i = 0; i < CurentFileList.Length; i++) // записываем список файлов 
                 {
-                    Lengt++;
-                    Array.Resize(ref DirList, Lengt - 1);
-                    DirList[Lengt - 1] = CurentFileList[i];
+                    length++;
+                    Array.Resize(ref DirList, length);
+                    DirList[length - 1] = CurentFileList[i];
                 }
             }
 
@@ -163,28 +169,46 @@ namespace ConsoleFileManager
 
                 for(int c = 0; c < lenght; c++) //выводим все элементы массива
                 {
-                    for (int p = 0; p < CountPage; p++) //выводим все страницы
+                    for (int p = 0; p < CountPage & c < Page*CountPage; p++) //выводим страницы по очереди
                     {
-                        for (int i = 0; i < Page & p < lenght; i++) //выводим все элементы страницы
+                        Console.Clear();
+                        for (int i = 0; i < Page; i++) //выводим все элементы страницы
                         {
                             Console.WriteLine(DirList[(p * Page) + i]);
                         }
 
-                        Console.WriteLine("Страница {0} из {1}, листать - стрелка вверх/вниз, выход - q", p + 1, Page);
+                        Console.WriteLine("Страница {0} из {1}, листать - стрелка вверх/вниз, выход - q", p + 1, CountPage);
                         do
                         {
-                            key = Console.ReadKey();
-                            if (key.Key == ConsoleKey.UpArrow) p = p == 0 ? 0 : (p - 1);
-                            if (key.Key == ConsoleKey.DownArrow) p = p == Page ? Page : (p + 1);
+                            key = Console.ReadKey(true);
+                            if(key.Key == ConsoleKey.UpArrow)   // если нажата клавиша вверх
+                            {                                   // уменьшаем счетчик страниц на 1
+                                p = p == 0 || p == 1 ? -1 : (p - 2);       // если это первая или вторая страница, то -1 (счетчик в цикле увеличит на 1)
+                                c = p == 0 || p == 1 ? 0 : (c - Page);    // счетчик строк уменьшаем на размер страницы если эта не первая страница
+                                break;
+                            }else if (key.Key == ConsoleKey.DownArrow)  // если нажата клавиша вниз
+                            {                                           // 
+                                //p++;                                    // увеличиваем счетчик страниц на 1
+                                c = c + Page;                           // счетчик строк увеличиваем на размер страницы
+                                break;
+                            }else if(key.Key == ConsoleKey.Q)   // если нажата клавиша Q
+                            {
+                                c = lenght;                     // считаем что дальше ничего смотреть не будем
+                            }
                         }
                         while (key.Key != ConsoleKey.Q);
                     }
+
+                    if (c < lenght) Console.WriteLine(DirList[c]); // выводим (если не нажали q) последние строки массива, количесвто которых меньше страницы
                 }
             }
 
 
             /*// метод вывода списка каталогов (версия 1)/ PathName - родительский каталог, level - глубина вывода списка каталогов,
             // LastDir - признак что вызываем вывод список каталогов для последнего родительского каталога
+            необходимо
+            //static int CountPage; // счетчик выводимых строк в команде dir
+            //static int Page = 50; // сколько строк выводить за 1 раз при команде dir
             static void ListDir(string PathName, int level, bool LastDir)
             {
                 if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
