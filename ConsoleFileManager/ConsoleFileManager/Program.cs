@@ -34,14 +34,17 @@ namespace ConsoleFileManager
     }
     class Program
     {
-        static int CountPage; // счетчик выводимых строк в команде dir
-        static int Page = 50; // сколько строк выводить за 1 раз при команде dir
+        //static int CountPage; // счетчик выводимых строк в команде dir
+        //static int Page = 50; // сколько строк выводить за 1 раз при команде dir
         static void Main(string[] args)
         {
+            int Page = 50; // сколько строк выводить за 1 раз при команде dir
             Console.OutputEncoding = Encoding.UTF8; //Для корректного вывода псевдографики
             string FileConfig = "config.json"; // имя файла для хранения последнего каталога в котором работали
             string PathConfig = Directory.GetCurrentDirectory() + "\\"; //получаем путь откуда запустили программу, по нему будет сохраняться файл с данными
             string [] ConfigRead = { }; // данные текущего каталога после десериализации из файла конфигурации
+
+            string[] DirList = { }; //массив каталогов, подкаталогов и файлов полсе команды dir
 
             string CurentPath = Directory.GetCurrentDirectory(); // текущий каталог 
             string NewString = ""; // строка новой команды на выполнение введенной пользователем
@@ -73,8 +76,11 @@ namespace ConsoleFileManager
                 {
                     case CommandName.dir:
                         if (NewCommand.Arg1 == "") NewCommand.Arg1 = CurentPath; //если аргумента нет то выводим список каталогов в текущем каталоге
-                        CountPage = Page;
-                        ListDir(NewCommand.Arg1, 2, false);
+                        //CountPage = Page;
+                        //ListDir(NewCommand.Arg1, 2, false);
+                        Array.Resize(ref DirList, 0); // очищаем массив от предыдущих результатов
+                        Dir(NewCommand.Arg1, ref DirList);
+                        DirPrint(ref DirList, Page);
                         break;
                     case CommandName.cd:
                         cdDir(NewCommand.Arg1);
@@ -107,6 +113,137 @@ namespace ConsoleFileManager
 
 
             }
+
+            //метод получения списка каталогов, подкаталогов и файлов в каталоге - версия 2
+            static void Dir(String PathName, ref String[] DirList)
+            {
+                string[] CurentDirList = { }; //для сохранения полученного списка каталогов
+                string[] CurentFileList = { }; //для сохранения полученного списка файлов в текущем каталоге
+                string[] Level2DirList = { }; //для хранения списка подкаталогов
+                int Lengt;
+                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
+
+                CurentDirList = Directory.GetDirectories(PathName); //получаем список каталогов в каталоге PathName
+                CurentFileList = Directory.GetFiles(PathName); //получаем список файлов в каталоге PathName
+
+                Lengt = DirList.Length + 1;
+
+                for (int i = 0; i < CurentDirList.Length; i++) //записываем список каталогов
+                {
+                    Array.Resize(ref DirList, Lengt + i);
+
+                    Lengt++;
+
+                    DirList[Lengt - 1] = CurentDirList[i];
+
+                    Level2DirList = Directory.GetDirectories(CurentDirList[i]);
+
+                    for (int c = 0; c < Level2DirList.Length; c++) //записываем список подкаталогов
+                    {
+                        Lengt++;
+                        Array.Resize(ref DirList, Lengt + i);
+                        DirList[Lengt + i - 1] = Level2DirList[c];
+                    }
+                }
+
+                for (int i = 0; i < CurentFileList.Length; i++)
+                {
+                    Lengt++;
+                    Array.Resize(ref DirList, Lengt - 1);
+                    DirList[Lengt - 1] = CurentFileList[i];
+                }
+            }
+
+            // метод вывода списка каталогов на экран
+            static void DirPrint(ref String[] DirList, int Page)
+            {
+                ConsoleKeyInfo key;
+                int lenght = DirList.Length;
+                int CountPage = lenght / Page;
+
+                for(int c = 0; c < lenght; c++) //выводим все элементы массива
+                {
+                    for (int p = 0; p < CountPage; p++) //выводим все страницы
+                    {
+                        for (int i = 0; i < Page & p < lenght; i++) //выводим все элементы страницы
+                        {
+                            Console.WriteLine(DirList[(p * Page) + i]);
+                        }
+
+                        Console.WriteLine("Страница {0} из {1}, листать - стрелка вверх/вниз, выход - q", p + 1, Page);
+                        do
+                        {
+                            key = Console.ReadKey();
+                            if (key.Key == ConsoleKey.UpArrow) p = p == 0 ? 0 : (p - 1);
+                            if (key.Key == ConsoleKey.DownArrow) p = p == Page ? Page : (p + 1);
+                        }
+                        while (key.Key != ConsoleKey.Q);
+                    }
+                }
+            }
+
+
+            /*// метод вывода списка каталогов (версия 1)/ PathName - родительский каталог, level - глубина вывода списка каталогов,
+            // LastDir - признак что вызываем вывод список каталогов для последнего родительского каталога
+            static void ListDir(string PathName, int level, bool LastDir)
+            {
+                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
+
+                string[] listDir = new string[1]; //для сохранения полученного списка каталогов
+                int lenght = PathName.Length; // длина строки, содержащей путь к каталогу, список котрого выводим
+                string LeftSpace = ""; // нужно когда выводится подкаталоги (второй уровень вложенности)
+
+                try
+                {
+                    listDir = Directory.GetDirectories(PathName); //создаем массив содержащий список каталогов в PathName
+                }
+                catch
+                {
+                    listDir[0] = PathName + "Отказано в доступе"; //в случае ошибки чтения списка вложенных каталогов пишем - отказано в доступе
+                }
+
+                int AmountDir = listDir.Length; // количество строк в массиве = количество каталогов
+
+                for (int i = 0; i < AmountDir; i++)
+                {
+                    if (level == 1 & !LastDir) LeftSpace = "\u2503 "; // если выводим подкаталоги, нужно сдвинуть их вывод
+                    else if (level == 2) LeftSpace = "";
+                    else LeftSpace = "  ";
+                    //выводим элементы массива, обрезая родительские каталоги 
+                    if (i != AmountDir - 1) Console.WriteLine(LeftSpace + "\u2523\u2578" + listDir[i].Substring(lenght)); //вывод с первого до предпоследнего элемента
+                    else
+                    {
+                        Console.WriteLine(LeftSpace + "\u2517\u2578" + listDir[i].Substring(lenght)); //вывод последнего элемента
+                        LastDir = true;
+                    }
+                    CountPage--; //вывели строчку уменьшили счетчик выведенных строк
+                    if (CountPage == 0)
+                    {
+                        Console.WriteLine("для продолжения нажмите клавишу");
+                        Console.ReadKey();
+                        Console.Clear();
+                        CountPage = Page;
+                    }
+
+                    if (level > 1) ListDir(listDir[i], level - 1, LastDir); // если требуется вывести подкаталог еще, то вызываем метод для вывода второго уровня каталогов
+                }
+
+                if (level == 2) // выводим список файлов если это не вложенные каталоги
+                {
+                    string[] listFile = Directory.GetFiles(PathName); //создаем массив содержащий список файлов в PathName
+                    AmountDir = listFile.Length; // количество строк в массиве = количество файлов
+                    for (int i = 0; i < AmountDir; i++) Console.WriteLine(LeftSpace + "  " + listFile[i].Substring(lenght));
+                    CountPage--; //вывели строчку уменьшили счетчик выведенных строк
+
+                    if (CountPage == 0)
+                    {
+                        Console.WriteLine("для продолжения нажмите клавишу");
+                        Console.ReadKey();
+                        Console.Clear();
+                        CountPage = Page;
+                    }
+                }
+            }*/
 
             //метод разбора полученной команды, на входе строка введенной команды, на выходе получаем команду, аргумент 1, аргумент 2
             static Command ParseCommand(string CommandString)
@@ -414,78 +551,6 @@ namespace ConsoleFileManager
                 }
             }
 
-            
-            //метод получения списка каталогов и файлов - версия 2
-            static string[] DirList(String PathName, int level)
-            {
-                string[] DirList = { }; //массив для хранения списка каталогов и файлов
-                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
-
-                return DirList;
-            }
-
-
-            // метод вывода списка каталогов/ PathName - родительский каталог, level - глубина вывода списка каталогов,
-            // LastDir - признак что вызываем вывод список каталогов для последнего родительского каталога
-            static void ListDir(string PathName, int level, bool LastDir) 
-            {
-                if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
-
-                string[] listDir = new string[1]; //для сохранения полученного списка каталогов
-                int lenght = PathName.Length; // длина строки, содержащей путь к каталогу, список котрого выводим
-                string LeftSpace = ""; // нужно когда выводится подкаталоги (второй уровень вложенности)
-
-                try 
-                {
-                    listDir = Directory.GetDirectories(PathName); //создаем массив содержащий список каталогов в PathName
-                }
-                catch
-                {
-                    listDir[0] = PathName +  "Отказано в доступе"; //в случае ошибки чтения списка вложенных каталогов пишем - отказано в доступе
-                }
-
-                int AmountDir = listDir.Length; // количество строк в массиве = количество каталогов
-
-                for (int i = 0; i < AmountDir; i++)
-                {
-                    if (level == 1 & !LastDir) LeftSpace = "\u2503 "; // если выводим подкаталоги, нужно сдвинуть их вывод
-                    else if (level == 2) LeftSpace = ""; 
-                    else LeftSpace = "  ";
-                    //выводим элементы массива, обрезая родительские каталоги 
-                    if (i != AmountDir - 1) Console.WriteLine(LeftSpace + "\u2523\u2578" + listDir[i].Substring(lenght)); //вывод с первого до предпоследнего элемента
-                    else
-                    {
-                        Console.WriteLine(LeftSpace + "\u2517\u2578" + listDir[i].Substring(lenght)); //вывод последнего элемента
-                        LastDir = true;
-                    }
-                    CountPage--; //вывели строчку уменьшили счетчик выведенных строк
-                    if (CountPage == 0)
-                    {
-                        Console.WriteLine("для продолжения нажмите клавишу");
-                        Console.ReadKey();
-                        Console.Clear();
-                        CountPage = Page;
-                    }
-
-                    if (level > 1) ListDir(listDir[i], level - 1, LastDir); // если требуется вывести подкаталог еще, то вызываем метод для вывода второго уровня каталогов
-                }
-
-                if (level == 2) // выводим список файлов если это не вложенные каталоги
-                {
-                    string[] listFile = Directory.GetFiles(PathName); //создаем массив содержащий список файлов в PathName
-                    AmountDir = listFile.Length; // количество строк в массиве = количество файлов
-                    for (int i = 0; i < AmountDir; i++) Console.WriteLine(LeftSpace + "  " + listFile[i].Substring(lenght));
-                    CountPage--; //вывели строчку уменьшили счетчик выведенных строк
-
-                    if (CountPage == 0)
-                    {
-                        Console.WriteLine("для продолжения нажмите клавишу");
-                        Console.ReadKey();
-                        Console.Clear();
-                        CountPage = Page;
-                    }
-                }
-            }
         }
     }
 }
