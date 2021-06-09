@@ -3,10 +3,6 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Configuration;
-using System.Xml;
-using Microsoft.Extensions.Configuration;
-using System.Resources;
-using System.Reflection;
 
 namespace ConsoleFileManager
 {
@@ -39,45 +35,44 @@ namespace ConsoleFileManager
     }
     class Program
     {
+        static int Page = 25; // сколько строк выводить за 1 раз при команде dir, значение по умолчанию - 25, если нет файла конфигурации, нужна видимость в методе dir
         static void Main(string[] args)
         {
             Console.OutputEncoding = Encoding.UTF8; //Для корректного вывода псевдографики
 
+            string CurentPath = Directory.GetCurrentDirectory(); // текущий каталог
 
-            int Page = 30; // сколько строк выводить за 1 раз при команде dir
-            string FileConfig = "config.json"; // имя файла для хранения последнего каталога в котором работали
-            string PathConfig = Directory.GetCurrentDirectory() + "\\"; //получаем путь откуда запустили программу, по нему будет сохраняться файл с данными
-            string [] ConfigRead = { }; // данные текущего каталога после десериализации из файла конфигурации
-
-
-            string[] DirList = { }; //массив каталогов, подкаталогов и файлов полсе команды dir
-            string CurentPath = Directory.GetCurrentDirectory(); // текущий каталог 
-            string NewString = ""; // строка новой команды на выполнение введенной пользователем
-            Command NewCommand = new(CommandName.error, "",""); // для распознанной команда с аргументами
-
-            var config
             // работа с файлом конфигурции
-            Configuration roaming = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.PerUserRoaming);
-            var FileMap = new ExeConfigurationFileMap { ExeConfigFilename = roaming.FilePath };
+            Configuration configFile = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.PerUserRoaming);
+            var FileMap = new ExeConfigurationFileMap { ExeConfigFilename = configFile.FilePath };
             Configuration config = ConfigurationManager.OpenMappedExeConfiguration(FileMap, ConfigurationUserLevel.None);
 
-
-            if (!File.Exists(FileConfig)) //проверка существования файла данных, если нет создаем и записываем в него текущий каталог
+            if (File.Exists(FileMap.ExeConfigFilename))  // проверяем наличие файла конфигурации
             {
-                File.Create(FileConfig).Close();
-                File.AppendAllText(FileConfig, JsonSerializer.Serialize(CurentPath));
+                CurentPath = config.AppSettings.Settings["Path"].Value;
+                Page = Convert.ToInt32(config.AppSettings.Settings["Page"].Value);
+                //проверяем существование сохраненного каталога, если он есть сохраняем его как текущий каталог иначе начинаем с рабочего каталога программы
+                if (!Directory.Exists(CurentPath)) CurentPath = Directory.GetCurrentDirectory();
+            }
+            else
+            {
+                config.AppSettings.Settings.Add("Path", CurentPath);
+                config.AppSettings.Settings.Add("Page", Convert.ToString(Page));
+                config.Save();
             }
 
-            ConfigRead = File.ReadAllLines(FileConfig); //читаем данные из файла конфигурации
-            //проверяем существование сохраненного каталога, если он есть сохраняем его как текущий каталог иначе начинаем с рабочего каталога программы
-            if (Directory.Exists(JsonSerializer.Deserialize<string>(ConfigRead[0]))) CurentPath = JsonSerializer.Deserialize<string>(ConfigRead[0]);
+            string[] DirList = { }; //массив каталогов, подкаталогов и файлов полсе команды dir
+             
+            string NewString = ""; // строка новой команды на выполнение, введенной пользователем
+            Command NewCommand = new(CommandName.error, "",""); // для хранения, распознанной команда с аргументами
+
             
             cdDir(CurentPath);
 
 
             while (NewCommand.Name != CommandName.quit)
             {
-                Console.WriteLine(CurentPath); // вывод текущего каталога
+                Console.WriteLine("Curent directory->" + CurentPath); // вывод текущего каталога
 
                 NewString = Console.ReadLine(); //получение новой команды
                 Console.Clear();
@@ -97,7 +92,7 @@ namespace ConsoleFileManager
                         break;
                     case CommandName.cd:
                         cdDir(NewCommand.Arg1);
-                        CurentPath = Directory.GetCurrentDirectory();
+                        CurentPath = Directory.GetCurrentDirectory(); //запоминаем каталог в который перешли
                         break;
                     case CommandName.copy:
                         Copy(NewCommand.Arg1, NewCommand.Arg2);
@@ -115,9 +110,10 @@ namespace ConsoleFileManager
                         MakeDir(NewCommand.Arg1);
                         break;
                     case CommandName.quit:
-                        //записываем последний каталог
-                        File.Create(PathConfig + FileConfig).Close();
-                        File.AppendAllText(PathConfig + FileConfig, JsonSerializer.Serialize(CurentPath));
+                        //сохраняем все изменения в файл конфигурации
+                        config.AppSettings.Settings["Path"].Value = CurentPath;
+                        config.AppSettings.Settings["Page"].Value = Convert.ToString(Page);
+                        config.Save(ConfigurationSaveMode.Modified);
                         break;
                     case CommandName.error:
                         Console.WriteLine("ошибка, неправильная команда");
@@ -132,6 +128,36 @@ namespace ConsoleFileManager
                 string[] CurentFileList = { }; //для сохранения полученного списка файлов в текущем каталоге
                 string[] Level2DirList = { }; //для хранения списка подкаталогов
                 int length;
+                int newPage = Page; // для ввода нового размера страницы вывдо списка каталогов
+
+
+                if(PathName.Length == 2) //Проверка команды на просмотр/изменение размера выводимой страницы
+                {
+                    if (PathName == "-p") //если только -p то выводим размер пейджинга
+                    {
+                        Console.WriteLine("Текущий размер страницы вывода - {0}", Page);
+                        return;
+                    }
+                }else if(PathName.Length > 2) // если аргумент содержит больше 2х символов
+                {
+
+                    if (PathName.Substring(0, 2) == "-p") // поверяем что первый 2 символа это команда -p
+                    {
+                        try
+                        {
+                            newPage = Convert.ToInt32(PathName.Substring(2, PathName.Length-2));
+                        }
+                        catch
+                        {
+                            Console.WriteLine("Ошибка! Неверно введна команда");
+                            return;
+                        }
+                        Page = newPage;
+                        return;
+                    }
+                }
+
+
                 if (PathName.Substring(PathName.Length - 1) != @"\") PathName += @"\"; // в строке содержащей путь последний символ должен быть \ (необходимо если вводим имя диска без \)
 
                 try
@@ -222,7 +248,7 @@ namespace ConsoleFileManager
                             Console.WriteLine(DirList[(p * Page) + i]);
                         }
 
-                        Console.WriteLine("Страница {0} из {1}, листать - стрелка вверх/вниз, выход - q", p + 1, CountPage);
+                        Console.WriteLine("Вывод {0}/{1}, листать - стрелка вверх/вниз, выход - q", (p + 1) * Page, lenght);
                         do
                         {
                             key = Console.ReadKey(true);
@@ -306,8 +332,8 @@ namespace ConsoleFileManager
                 return NewCommand;
             }
 
-                                                                
-            static void GetInfo(string Name) //метод получение информации по файлу/каталогу
+            //метод получение информации по файлу/каталогу                                                    
+            static void GetInfo(string Name) 
             {
                 long Size;
                 DateTime DateCreate;
@@ -335,8 +361,8 @@ namespace ConsoleFileManager
                 else Console.WriteLine("Ошибка! Объект не найден");
             }
 
-                                                                
-            static long DirSize(String path) //метод подсчета размера каталога
+            //метод подсчета размера каталога                                                    
+            static long DirSize(String path) 
             {
                 long Size = 0;
                 DirectoryInfo DirPath = new DirectoryInfo(path);
@@ -358,8 +384,8 @@ namespace ConsoleFileManager
                 
             }
 
- 
-            static void Delete (string DelElement)  //метод удаления файла / каталога
+            //метод удаления файла / каталога
+            static void Delete (string DelElement)  
             {
                                                                 //если второй символ не ':' (используется в обозначени диска),
                                                                 //предполагаем что DelElement содержит имя удаляемого элемента в текущем каталоге
@@ -425,15 +451,16 @@ namespace ConsoleFileManager
                 }
             }
 
-               
-            static void MakeDir(string NewDir)  //метод создания каталога
+            //метод создания каталога
+            static void MakeDir(string NewDir)  
             {
                 try
                 {
                                                                 //если аргумент не содержит знак : (используется при обозначении пути к диску)
                                                                 //предполагаем что NewDir это имя нового каталога в текущем каталоге
-                    if (NewDir[1] != ':') NewDir = Path.Combine(Directory.GetCurrentDirectory(), NewDir); 
-                    Directory.CreateDirectory(NewDir);
+                    if (NewDir[1] != ':') NewDir = Path.Combine(Directory.GetCurrentDirectory(), NewDir);
+                    if (Directory.Exists(NewDir)) Console.WriteLine("Каталог уже существует");
+                    else Directory.CreateDirectory(NewDir);
                 }
                 catch(IOException)
                 {
@@ -454,8 +481,8 @@ namespace ConsoleFileManager
 
             }
 
-                                      
-            static void FileInfo(string Path)   //метод просмотра содержимого файлов
+            //метод просмотра содержимого файлов                          
+            static void FileInfo(string Path)   
             {
                 if (File.Exists(Path))
                 {
@@ -478,8 +505,8 @@ namespace ConsoleFileManager
                 
             }
 
-
-            static void Copy(string PathFrom, string PathTo)    //метод копирования файла / каталога
+            //метод копирования файла / каталога
+            static void Copy(string PathFrom, string PathTo)    
             {
                 if (PathFrom == PathTo)
                 {
@@ -509,8 +536,8 @@ namespace ConsoleFileManager
                 else Console.WriteLine("Ошибка! Неверно указан источник копирования");
             }
 
-                        
-            static void DirCopy(string PathFrom, string PathTo) // Метод копирования каталога
+            // Метод копирования каталога            
+            static void DirCopy(string PathFrom, string PathTo) 
             {
                 DirectoryInfo DirPathSource = new DirectoryInfo(PathFrom);
                 DirectoryInfo DirPathDestination = new DirectoryInfo(PathTo);
@@ -540,8 +567,8 @@ namespace ConsoleFileManager
                 }
             }
 
-                    
-            static void cdDir(string PathName)  // метод смены каталога
+            // метод смены каталога        
+            static void cdDir(string PathName)  
             {
                 try
                 {
