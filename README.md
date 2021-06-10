@@ -1,5 +1,14 @@
 # FileManger
 Console File Manager
+
+необходим пакет
+install nuget packet
+System.Configuration.ConfigurationManager
+
+https://api.nuget.org/v3/index.json
+nuget.org
+
+
 Список команд:
 quit - выйти из программы,  сохраняется текущий каталог, количество строк страницы вывода команды dir
 
